@@ -4494,10 +4494,11 @@ export function createNodeFactory(flags: NodeFactoryFlags, baseFactory: BaseNode
         }
 
         return node.modifiers !== modifiers
-        || node.name !== name
-        || node.body !== body
-        ? update(createModuleDeclaration(modifiers, name, body, node.flags | NodeFlags.Namespace), node)
-        : update(createModuleDeclaration(node.modifiers, node.name, node.body, node.flags | NodeFlags.Namespace), node);
+            || node.name !== name
+            || node.body !== body
+            ? update(createModuleDeclaration(modifiers, name, body, node.flags | NodeFlags.Namespace), node)
+            : update(createModuleDeclaration(node.modifiers, node.name, node.body, node.flags | NodeFlags.Namespace), node);
+
     }
 
     // @api
