@@ -767,6 +767,7 @@ export function createNodeFactory(flags: NodeFactoryFlags, baseFactory: BaseNode
         updateEnumDeclaration,
         createModuleDeclaration,
         updateModuleDeclaration,
+        updateModuleDeclarationAndKeyword,
         createModuleBlock,
         updateModuleBlock,
         createCaseBlock,
@@ -4479,6 +4480,25 @@ export function createNodeFactory(flags: NodeFactoryFlags, baseFactory: BaseNode
         node.locals = undefined; // initialized by binder (LocalsContainer)
         node.nextContainer = undefined; // initialized by binder (LocalsContainer)
         return node;
+    }
+
+    // @api
+    function updateModuleDeclarationAndKeyword(
+        node: ModuleDeclaration,
+        modifiers: readonly ModifierLike[] | undefined,
+        name: ModuleName,
+        body: ModuleBody | undefined
+    ) {
+        if (node.flags & (NodeFlags.Ambient | NodeFlags.Namespace)) {
+            return updateModuleDeclaration(node, modifiers, name, body);
+        }
+
+        return node.modifiers !== modifiers
+            || node.name !== name
+            || node.body !== body
+            ? update(createModuleDeclaration(modifiers, name, body, node.flags | NodeFlags.Namespace), node)
+            : update(createModuleDeclaration(node.modifiers, node.name, node.body, node.flags | NodeFlags.Namespace), node);
+
     }
 
     // @api
