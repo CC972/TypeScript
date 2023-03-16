@@ -764,6 +764,7 @@ export function createNodeFactory(flags: NodeFactoryFlags, baseFactory: BaseNode
         updateEnumDeclaration,
         createModuleDeclaration,
         updateModuleDeclaration,
+        updateModuleDeclarationAndKeyword,
         createModuleBlock,
         updateModuleBlock,
         createCaseBlock,
@@ -4473,6 +4474,20 @@ export function createNodeFactory(flags: NodeFactoryFlags, baseFactory: BaseNode
             || node.body !== body
             ? update(createModuleDeclaration(modifiers, name, body, node.flags), node)
             : node;
+    }
+
+    // @api
+    function updateModuleDeclarationAndKeyword(
+        node: ModuleDeclaration,
+        modifiers: readonly ModifierLike[] | undefined,
+        name: ModuleName,
+        body: ModuleBody | undefined
+    ) {
+        if (node.flags & (NodeFlags.Ambient | NodeFlags.Namespace)) {
+            return updateModuleDeclaration(node, modifiers, name, body);
+        }
+
+        return update(createModuleDeclaration(modifiers, name, body, node.flags | NodeFlags.Namespace), node);
     }
 
     // @api
