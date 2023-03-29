@@ -146,6 +146,7 @@ import {
     InterfaceDeclaration,
     InternalEmitFlags,
     IntersectionTypeNode,
+    isAmbientModule,
     isArray,
     isArrayLiteralExpression,
     isArrowFunction,
@@ -468,7 +469,7 @@ import {
     VoidExpression,
     WhileStatement,
     WithStatement,
-    YieldExpression,
+    YieldExpression
 } from "../_namespaces/ts";
 
 let nextAutoGenerateId = 0;
@@ -4483,7 +4484,7 @@ export function createNodeFactory(flags: NodeFactoryFlags, baseFactory: BaseNode
         name: ModuleName,
         body: ModuleBody | undefined
     ) {
-        if (node.flags & (NodeFlags.Ambient | NodeFlags.Namespace)) {
+        if (isAmbientModule(node)) {
             return updateModuleDeclaration(node, modifiers, name, body);
         }
 
