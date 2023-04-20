@@ -607,6 +607,7 @@ export interface LanguageService {
      * Editors should call this after `>` is typed.
      */
     getJsxClosingTagAtPosition(fileName: string, position: number): JsxClosingTagInfo | undefined;
+    getLinkedEditingRangeAtPosition(fileName: string, position: number): LinkedEditingInfo | undefined;
 
     getSpanOfEnclosingComment(fileName: string, position: number, onlyMultiLine: boolean): TextSpan | undefined;
 
@@ -629,7 +630,13 @@ export interface LanguageService {
     /** @deprecated `fileName` will be ignored */
     applyCodeActionCommand(fileName: string, action: CodeActionCommand | CodeActionCommand[]): Promise<ApplyCodeActionCommandResult | ApplyCodeActionCommandResult[]>;
 
-    getApplicableRefactors(fileName: string, positionOrRange: number | TextRange, preferences: UserPreferences | undefined, triggerReason?: RefactorTriggerReason, kind?: string): ApplicableRefactorInfo[];
+    /**
+     * @param includeInteractiveActions Include refactor actions that require additional arguments to be
+     * passed when calling `getEditsForRefactor`. When true, clients should inspect the `isInteractive`
+     * property of each returned `RefactorActionInfo` and ensure they are able to collect the appropriate
+     * arguments for any interactive action before offering it.
+     */
+    getApplicableRefactors(fileName: string, positionOrRange: number | TextRange, preferences: UserPreferences | undefined, triggerReason?: RefactorTriggerReason, kind?: string, includeInteractiveActions?: boolean): ApplicableRefactorInfo[];
     getEditsForRefactor(fileName: string, formatOptions: FormatCodeSettings, positionOrRange: number | TextRange, refactorName: string, actionName: string, preferences: UserPreferences | undefined): RefactorEditInfo | undefined;
     organizeImports(args: OrganizeImportsArgs, formatOptions: FormatCodeSettings, preferences: UserPreferences | undefined): readonly FileTextChanges[];
     getEditsForFileRename(oldFilePath: string, newFilePath: string, formatOptions: FormatCodeSettings, preferences: UserPreferences | undefined): readonly FileTextChanges[];
@@ -659,6 +666,11 @@ export interface LanguageService {
 
 export interface JsxClosingTagInfo {
     readonly newText: string;
+}
+
+export interface LinkedEditingInfo {
+    readonly ranges: TextSpan[];
+    wordPattern?: string;
 }
 
 export interface CombinedCodeFixScope { type: "file"; fileName: string; }
@@ -957,6 +969,12 @@ export interface RefactorActionInfo {
      * The hierarchical dotted name of the refactor action.
      */
     kind?: string;
+
+    /**
+     * Indicates that the action requires additional arguments to be passed
+     * when calling `getEditsForRefactor`.
+     */
+    isInteractive?: boolean;
 }
 
 /**
@@ -1112,6 +1130,7 @@ export interface FormatCodeSettings extends EditorSettings {
     readonly insertSpaceBeforeTypeAnnotation?: boolean;
     readonly indentMultiLineObjectLiteralBeginningOnBlankLine?: boolean;
     readonly semicolons?: SemicolonPreference;
+    readonly indentSwitchCase?: boolean;
 }
 
 export function getDefaultFormatCodeSettings(newLineCharacter?: string): FormatCodeSettings {
@@ -1136,7 +1155,8 @@ export function getDefaultFormatCodeSettings(newLineCharacter?: string): FormatC
         placeOpenBraceOnNewLineForFunctions: false,
         placeOpenBraceOnNewLineForControlBlocks: false,
         semicolons: SemicolonPreference.Ignore,
-        trimTrailingWhitespace: true
+        trimTrailingWhitespace: true,
+        indentSwitchCase: true
     };
 }
 
@@ -1753,7 +1773,7 @@ export interface Refactor {
     getEditsForAction(context: RefactorContext, actionName: string): RefactorEditInfo | undefined;
 
     /** Compute (quickly) which actions are available here */
-    getAvailableActions(context: RefactorContext): readonly ApplicableRefactorInfo[];
+    getAvailableActions(context: RefactorContext, includeInteractive?: boolean): readonly ApplicableRefactorInfo[];
 }
 
 /** @internal */

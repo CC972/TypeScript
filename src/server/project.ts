@@ -465,11 +465,11 @@ export abstract class Project implements LanguageServiceHost, ModuleResolutionHo
         public compileOnSaveEnabled: boolean,
         protected watchOptions: WatchOptions | undefined,
         directoryStructureHost: DirectoryStructureHost,
-        currentDirectory: string | undefined,
+        currentDirectory: string,
     ) {
         this.projectName = projectName;
         this.directoryStructureHost = directoryStructureHost;
-        this.currentDirectory = this.projectService.getNormalizedAbsolutePath(currentDirectory || "");
+        this.currentDirectory = this.projectService.getNormalizedAbsolutePath(currentDirectory);
         this.getCanonicalFileName = this.projectService.toCanonicalFileName;
 
         this.cancellationToken = new ThrottledCancellationToken(this.projectService.cancellationToken, this.projectService.throttleWaitMilliseconds);
@@ -514,7 +514,7 @@ export abstract class Project implements LanguageServiceHost, ModuleResolutionHo
         // Use the current directory as resolution root only if the project created using current directory string
         this.resolutionCache = createResolutionCache(
             this,
-            currentDirectory && this.currentDirectory,
+            this.currentDirectory,
             /*logChangesWhenResolvingModule*/ true
         );
         this.languageService = createLanguageService(this, this.documentRegistry, this.projectService.serverMode);
@@ -1643,7 +1643,7 @@ export abstract class Project implements LanguageServiceHost, ModuleResolutionHo
                 // reset cached unresolved imports if changes in compiler options affected module resolution
                 this.cachedUnresolvedImportsPerFile.clear();
                 this.lastCachedUnresolvedImportsList = undefined;
-                this.resolutionCache.clear();
+                this.resolutionCache.onChangesAffectModuleResolution();
                 this.moduleSpecifierCache.clear();
             }
             this.markAsDirty();
@@ -2059,7 +2059,7 @@ export abstract class Project implements LanguageServiceHost, ModuleResolutionHo
     getNoDtsResolutionProject(rootFileNames: readonly string[]): Project {
         Debug.assert(this.projectService.serverMode === LanguageServiceMode.Semantic);
         if (!this.noDtsResolutionProject) {
-            this.noDtsResolutionProject = new AuxiliaryProject(this.projectService, this.documentRegistry, this.getCompilerOptionsForNoDtsResolutionProject());
+            this.noDtsResolutionProject = new AuxiliaryProject(this.projectService, this.documentRegistry, this.getCompilerOptionsForNoDtsResolutionProject(), this.currentDirectory);
         }
 
         enumerateInsertsAndDeletes<NormalizedPath, NormalizedPath>(
@@ -2176,7 +2176,7 @@ export class InferredProject extends Project {
         compilerOptions: CompilerOptions,
         watchOptions: WatchOptions | undefined,
         projectRootPath: NormalizedPath | undefined,
-        currentDirectory: string | undefined,
+        currentDirectory: string,
         pluginConfigOverrides: Map<string, any> | undefined,
         typeAcquisition: TypeAcquisition | undefined) {
         super(projectService.newInferredProjectName(),
@@ -2205,13 +2205,17 @@ export class InferredProject extends Project {
         if (!this._isJsInferredProject && info.isJavaScript()) {
             this.toggleJsInferredProject(/*isJsInferredProject*/ true);
         }
+        else if (this.isOrphan() && this._isJsInferredProject && !info.isJavaScript()) {
+            this.toggleJsInferredProject(/*isJsInferredProject*/ false);
+        }
         super.addRoot(info);
     }
 
     override removeRoot(info: ScriptInfo) {
         this.projectService.stopWatchingConfigFilesForInferredProjectRoot(info);
         super.removeRoot(info);
-        if (this._isJsInferredProject && info.isJavaScript()) {
+        // Delay toggling to isJsInferredProject = false till we actually need it again
+        if (!this.isOrphan() && this._isJsInferredProject && info.isJavaScript()) {
             if (every(this.getRootScriptInfos(), rootInfo => !rootInfo.isJavaScript())) {
                 this.toggleJsInferredProject(/*isJsInferredProject*/ false);
             }
@@ -2246,7 +2250,7 @@ export class InferredProject extends Project {
 }
 
 class AuxiliaryProject extends Project {
-    constructor(projectService: ProjectService, documentRegistry: DocumentRegistry, compilerOptions: CompilerOptions) {
+    constructor(projectService: ProjectService, documentRegistry: DocumentRegistry, compilerOptions: CompilerOptions, currentDirectory: string) {
         super(projectService.newAuxiliaryProjectName(),
             ProjectKind.Auxiliary,
             projectService,
@@ -2257,7 +2261,7 @@ class AuxiliaryProject extends Project {
             /*compileOnSaveEnabled*/ false,
             /*watchOptions*/ undefined,
             projectService.host,
-            /*currentDirectory*/ undefined);
+            currentDirectory);
     }
 
     override isOrphan(): boolean {
@@ -2350,7 +2354,7 @@ export class AutoImportProviderProject extends Project {
                 //    allow processing JS from node_modules, go back to the implementation
                 //    package and load the JS.
                 if (packageJson && compilerOptions.allowJs && compilerOptions.maxNodeModuleJsDepth) {
-                    const entrypoints = getRootNamesFromPackageJson(packageJson, program, symlinkCache, /*allowJs*/ true);
+                    const entrypoints = getRootNamesFromPackageJson(packageJson, program, symlinkCache, /*resolveJs*/ true);
                     rootNames = concatenate(rootNames, entrypoints);
                     dependenciesAdded += entrypoints?.length ? 1 : 0;
                 }
